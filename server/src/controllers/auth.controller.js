@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 
 const User = require("../models/user.model");
 const RefreshToken = require("../models/refresh-token.model");
@@ -116,8 +117,22 @@ const getClientBaseUrl = () => {
   return process.env.CLIENT_APP_URL || process.env.FRONTEND_URL || "http://localhost:5173";
 };
 
+const ensureMongoReady = (res) => {
+  if (mongoose.connection.readyState === 1) {
+    return true;
+  }
+
+  return res.status(503).json({
+    message: "Database is temporarily unavailable. Please try again shortly."
+  });
+};
+
 const register = async (req, res) => {
   try {
+    if (!ensureMongoReady(res)) {
+      return undefined;
+    }
+
     const { firstName, lastName, email, password, handicap, homeClub, charityId } = req.body;
     const donationPercentage = Number(req.body.donationPercentage ?? 10);
 
@@ -178,6 +193,10 @@ const register = async (req, res) => {
 
 const registerAdmin = async (req, res) => {
   try {
+    if (!ensureMongoReady(res)) {
+      return undefined;
+    }
+
     const { firstName, lastName, email, password, handicap, homeClub } = req.body;
 
     if (!firstName || !lastName || !email || !password) {
@@ -226,6 +245,10 @@ const registerAdmin = async (req, res) => {
 
 const login = async (req, res) => {
   try {
+    if (!ensureMongoReady(res)) {
+      return undefined;
+    }
+
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -254,6 +277,10 @@ const login = async (req, res) => {
 
 const forgotPassword = async (req, res) => {
   try {
+    if (!ensureMongoReady(res)) {
+      return undefined;
+    }
+
     const email = `${req.body.email || ""}`.toLowerCase().trim();
 
     const genericMessage = "If that account exists, a password reset link has been sent to the email address.";
@@ -284,6 +311,10 @@ const forgotPassword = async (req, res) => {
 
 const resetPassword = async (req, res) => {
   try {
+    if (!ensureMongoReady(res)) {
+      return undefined;
+    }
+
     const { token, newPassword } = req.body;
 
     const user = await User.findOne({
@@ -311,6 +342,10 @@ const resetPassword = async (req, res) => {
 
 const changePassword = async (req, res) => {
   try {
+    if (!ensureMongoReady(res)) {
+      return undefined;
+    }
+
     const { currentPassword, newPassword } = req.body;
 
     const user = await User.findById(req.user._id);
@@ -417,6 +452,10 @@ const me = async (req, res) => {
     return res.status(200).json({ user });
   }
 
+  if (!ensureMongoReady(res)) {
+    return undefined;
+  }
+
   const user = await User.findById(req.user._id)
     .select("-password")
     .populate("selectedCharity", "name category country status");
@@ -483,6 +522,10 @@ const guestLogin = async (req, res) => {
 
 const bootstrapAdmin = async (req, res) => {
   try {
+    if (!ensureMongoReady(res)) {
+      return undefined;
+    }
+
     const configuredKey = process.env.ADMIN_BOOTSTRAP_KEY;
     const providedKey = req.headers["x-admin-bootstrap-key"] || req.body.bootstrapKey;
 

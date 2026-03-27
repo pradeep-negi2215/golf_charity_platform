@@ -1,6 +1,8 @@
 const mongoose = require("mongoose");
 const dns = require("dns");
 
+mongoose.set("bufferCommands", false);
+
 const toBoolean = (value, defaultValue = false) => {
   if (value === undefined || value === null || value === "") {
     return defaultValue;
