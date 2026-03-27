@@ -81,6 +81,13 @@ function AdminSignupPage() {
 
       localStorage.setItem("authToken", response.data.accessToken || response.data.token);
       localStorage.setItem("authUser", JSON.stringify(response.data.user));
+
+      const normalizedEmail = form.email.toLowerCase().trim();
+      const demoAdminEmails = JSON.parse(localStorage.getItem("demoAdminEmails") || "[]");
+      if (!demoAdminEmails.includes(normalizedEmail)) {
+        localStorage.setItem("demoAdminEmails", JSON.stringify([...demoAdminEmails, normalizedEmail]));
+      }
+
       const destination = response.data.user?.role === "admin" ? "/admin" : "/dashboard";
       navigate(destination);
     } catch (requestError) {

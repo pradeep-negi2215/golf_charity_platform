@@ -67,7 +67,14 @@ function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await authApi.login({ email, password });
+      const demoAdminEmails = JSON.parse(localStorage.getItem("demoAdminEmails") || "[]");
+      const shouldLoginAsAdmin = demoAdminEmails.includes(email.toLowerCase().trim());
+
+      const response = await authApi.login({
+        email,
+        password,
+        asAdmin: shouldLoginAsAdmin
+      });
       localStorage.setItem("authToken", response.data.accessToken || response.data.token);
       localStorage.setItem("authUser", JSON.stringify(response.data.user));
       const destination = response.data.user?.role === "admin" ? "/admin" : "/dashboard";

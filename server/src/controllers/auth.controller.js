@@ -318,6 +318,7 @@ const login = async (req, res) => {
     if (global.DEMO_MODE) {
       const { email, password } = req.body;
       const normalizedEmail = `${email || ""}`.toLowerCase().trim();
+      const asAdmin = Boolean(req.body.asAdmin);
 
       if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
@@ -326,7 +327,7 @@ const login = async (req, res) => {
       const demoUser = buildDemoAuthUser({
         email: normalizedEmail,
         firstName: normalizedEmail.split("@")[0] || "Demo",
-        role: demoAdminEmails.has(normalizedEmail) || /admin/i.test(normalizedEmail) ? "admin" : "member"
+        role: asAdmin || demoAdminEmails.has(normalizedEmail) || /admin/i.test(normalizedEmail) ? "admin" : "member"
       });
 
       return res.status(200).json(buildAuthResponse(demoUser));
@@ -524,10 +525,10 @@ const me = async (req, res) => {
     // In demo mode, return the user from auth (who sent the token)
     const user = {
       _id: req.user?._id || "demo-guest-001",
-      firstName: "Guest",
-      lastName: "User",
-      email: "guest@demo.golf-charity.local",
-      role: "member",
+      firstName: req.user?.firstName || "Guest",
+      lastName: req.user?.lastName || "User",
+      email: req.user?.email || "guest@demo.golf-charity.local",
+      role: req.user?.role || "member",
       selectedCharity: {
         _id: "demo-charity-001",
         name: "Demo Charity Foundation",
