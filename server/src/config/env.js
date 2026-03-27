@@ -10,16 +10,16 @@ const ensureRuntimeSecret = (key) => {
 };
 
 const getCorsOrigins = () => {
-  const raw =
-    process.env.CLIENT_URL ||
-    process.env.FRONTEND_URL ||
-    "http://localhost:5173,http://localhost:4173,https://*.vercel.app";
-  const origins = raw
+  const defaults = ["http://localhost:5173", "http://localhost:4173", "https://*.vercel.app"];
+  const configured = `${process.env.CLIENT_URL || ""},${process.env.FRONTEND_URL || ""}`;
+
+  const origins = configured
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
 
-  return origins.length ? origins : ["http://localhost:5173"];
+  const merged = Array.from(new Set([...defaults, ...origins]));
+  return merged.length ? merged : ["http://localhost:5173"];
 };
 
 const validateEnvironment = () => {

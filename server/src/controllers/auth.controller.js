@@ -117,6 +117,37 @@ const getClientBaseUrl = () => {
   return process.env.CLIENT_APP_URL || process.env.FRONTEND_URL || "http://localhost:5173";
 };
 
+const buildDemoAuthUser = ({
+  firstName,
+  lastName,
+  email,
+  role = "member",
+  handicap = 28,
+  homeClub = "",
+  charityId = "demo-charity-001",
+  donationPercentage = 10
+}) => {
+  const now = Date.now();
+
+  return {
+    _id: `demo-${role}-${now}`,
+    firstName: firstName || "Demo",
+    lastName: lastName || (role === "admin" ? "Admin" : "User"),
+    email: email || `demo-${role}@golf-charity.local`,
+    role,
+    handicap,
+    homeClub,
+    selectedCharity: {
+      _id: charityId,
+      name: "Demo Charity Foundation",
+      category: "education",
+      country: "US",
+      status: "active"
+    },
+    donationPercentage
+  };
+};
+
 const ensureMongoReady = (res) => {
   if (mongoose.connection.readyState === 1) {
     return true;
@@ -129,6 +160,21 @@ const ensureMongoReady = (res) => {
 
 const register = async (req, res) => {
   try {
+    if (global.DEMO_MODE) {
+      const demoUser = buildDemoAuthUser({
+        firstName: req.body.firstName,
+        lastName: req.body.lastName,
+        email: req.body.email,
+        role: "member",
+        handicap: Number(req.body.handicap || 28),
+        homeClub: req.body.homeClub || "",
+        charityId: req.body.charityId || "demo-charity-001",
+        donationPercentage: Number(req.body.donationPercentage || 10)
+      });
+
+      return res.status(201).json(buildAuthResponse(demoUser));
+    }
+
     if (!ensureMongoReady(res)) {
       return undefined;
     }
@@ -193,6 +239,19 @@ const register = async (req, res) => {
 
 const registerAdmin = async (req, res) => {
   try {
+    if (global.DEMO_MODE) {
+      const demoUser = buildDemoAuthUser({
+        firstName: req.body.firstName,
+        lastName: req.body.lastName,
+        email: req.body.email,
+        role: "admin",
+        handicap: Number(req.body.handicap || 28),
+        homeClub: req.body.homeClub || ""
+      });
+
+      return res.status(201).json(buildAuthResponse(demoUser));
+    }
+
     if (!ensureMongoReady(res)) {
       return undefined;
     }
@@ -245,6 +304,22 @@ const registerAdmin = async (req, res) => {
 
 const login = async (req, res) => {
   try {
+    if (global.DEMO_MODE) {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+      }
+
+      const demoUser = buildDemoAuthUser({
+        email,
+        firstName: email.split("@")[0] || "Demo",
+        role: /admin/i.test(email) ? "admin" : "member"
+      });
+
+      return res.status(200).json(buildAuthResponse(demoUser));
+    }
+
     if (!ensureMongoReady(res)) {
       return undefined;
     }

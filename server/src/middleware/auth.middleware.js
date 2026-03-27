@@ -20,6 +20,15 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ message: "Unauthorized: invalid token type" });
     }
 
+    if (global.DEMO_MODE) {
+      req.user = {
+        _id: payload.sub,
+        email: payload.email,
+        role: payload.role || "member"
+      };
+      return next();
+    }
+
     const user = await User.findById(payload.sub).select("-password");
 
     if (!user) {
