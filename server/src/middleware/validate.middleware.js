@@ -8,6 +8,19 @@ const validateObjectId = (value) => {
   return mongoose.Types.ObjectId.isValid(value);
 };
 
+const validateCharityId = (charityId) => {
+  if (validateObjectId(charityId)) {
+    return true;
+  }
+
+  // In demo mode, charities can use non-ObjectId demo identifiers.
+  if (global.DEMO_MODE && /^demo-charity-[\w-]+$/i.test(`${charityId || ""}`)) {
+    return true;
+  }
+
+  return false;
+};
+
 const validateRegisterPayload = (req, res, next) => {
   const { firstName, lastName, email, password, charityId } = req.body;
   const details = [];
@@ -19,7 +32,7 @@ const validateRegisterPayload = (req, res, next) => {
   if (!charityId) details.push("charityId is required");
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) details.push("email is invalid");
   if (password && `${password}`.length < 8) details.push("password must be at least 8 characters");
-  if (charityId && !validateObjectId(charityId)) details.push("charityId must be a valid ObjectId");
+  if (charityId && !validateCharityId(charityId)) details.push("charityId must be a valid charity identifier");
 
   if (details.length) {
     return badRequest(res, "Invalid register payload", details);
