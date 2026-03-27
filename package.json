@@ -1,0 +1,14 @@
+{
+  "name": "golf-charity-platform",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Root deploy entry for Golf Charity backend",
+  "scripts": {
+    "start": "node src/server/server.js",
+    "build": "npm --prefix server install",
+    "postinstall": "npm --prefix server install"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
