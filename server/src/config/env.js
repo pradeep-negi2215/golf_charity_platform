@@ -1,7 +1,12 @@
-const assertRequired = (key) => {
-  if (!process.env[key]) {
-    throw new Error(`Missing required environment variable: ${key}`);
+const crypto = require("crypto");
+
+const ensureRuntimeSecret = (key) => {
+  if (process.env[key]) {
+    return;
   }
+
+  process.env[key] = crypto.randomBytes(48).toString("hex");
+  console.warn(`${key} not set. Generated ephemeral runtime secret for this process.`);
 };
 
 const getCorsOrigins = () => {
@@ -17,8 +22,8 @@ const getCorsOrigins = () => {
 const validateEnvironment = () => {
   const nodeEnv = process.env.NODE_ENV || "development";
 
-  assertRequired("JWT_SECRET");
-  assertRequired("JWT_REFRESH_SECRET");
+  ensureRuntimeSecret("JWT_SECRET");
+  ensureRuntimeSecret("JWT_REFRESH_SECRET");
 
   if (!process.env.MONGODB_URI && !process.env.MONGO_URI) {
     // Mongo can be unavailable in demo/degraded mode; startup will handle this gracefully.
