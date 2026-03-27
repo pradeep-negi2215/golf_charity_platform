@@ -70,7 +70,8 @@ function LoginPage() {
       const response = await authApi.login({ email, password });
       localStorage.setItem("authToken", response.data.accessToken || response.data.token);
       localStorage.setItem("authUser", JSON.stringify(response.data.user));
-      navigate("/dashboard");
+      const destination = response.data.user?.role === "admin" ? "/admin" : "/dashboard";
+      navigate(destination);
     } catch (requestError) {
       setError(getRequestErrorMessage(requestError, "Login failed"));
     } finally {

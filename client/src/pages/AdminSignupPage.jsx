@@ -81,7 +81,8 @@ function AdminSignupPage() {
 
       localStorage.setItem("authToken", response.data.accessToken || response.data.token);
       localStorage.setItem("authUser", JSON.stringify(response.data.user));
-      navigate("/dashboard");
+      const destination = response.data.user?.role === "admin" ? "/admin" : "/dashboard";
+      navigate(destination);
     } catch (requestError) {
       setError(getRequestErrorMessage(requestError, "Admin signup failed"));
     } finally {
