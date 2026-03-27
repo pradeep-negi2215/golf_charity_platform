@@ -43,6 +43,53 @@ const validateLoginPayload = (req, res, next) => {
   return next();
 };
 
+const validateForgotPasswordPayload = (req, res, next) => {
+  const { email } = req.body;
+  const details = [];
+
+  if (!email) details.push("email is required");
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) details.push("email is invalid");
+
+  if (details.length) {
+    return badRequest(res, "Invalid forgot-password payload", details);
+  }
+
+  return next();
+};
+
+const validateResetPasswordPayload = (req, res, next) => {
+  const { token, newPassword } = req.body;
+  const details = [];
+
+  if (!token) details.push("token is required");
+  if (!newPassword) details.push("newPassword is required");
+  if (newPassword && `${newPassword}`.length < 8) details.push("newPassword must be at least 8 characters");
+
+  if (details.length) {
+    return badRequest(res, "Invalid reset-password payload", details);
+  }
+
+  return next();
+};
+
+const validateChangePasswordPayload = (req, res, next) => {
+  const { currentPassword, newPassword } = req.body;
+  const details = [];
+
+  if (!currentPassword) details.push("currentPassword is required");
+  if (!newPassword) details.push("newPassword is required");
+  if (newPassword && `${newPassword}`.length < 8) details.push("newPassword must be at least 8 characters");
+  if (currentPassword && newPassword && currentPassword === newPassword) {
+    details.push("newPassword must be different from currentPassword");
+  }
+
+  if (details.length) {
+    return badRequest(res, "Invalid change-password payload", details);
+  }
+
+  return next();
+};
+
 const validateBootstrapAdminPayload = (req, res, next) => {
   const { firstName, lastName, email, password, charityId } = req.body;
   const details = [];
@@ -265,6 +312,9 @@ const validateAdminPayoutPayload = (req, res, next) => {
 module.exports = {
   validateRegisterPayload,
   validateLoginPayload,
+  validateForgotPasswordPayload,
+  validateResetPasswordPayload,
+  validateChangePasswordPayload,
   validateBootstrapAdminPayload,
   validateScoreCreatePayload,
   validateSubscriptionCreatePayload,

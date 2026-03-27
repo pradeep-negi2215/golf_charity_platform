@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import LocationCurrencyPicker from "../components/LocationCurrencyPicker";
+import { useLocationCurrency } from "../hooks/useLocationCurrency";
 import { authApi } from "../services/api";
 
 const validateForm = (email, password) => {
@@ -19,7 +21,26 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGuestLoading, setIsGuestLoading] = useState(false);
   const navigate = useNavigate();
+  const { selectedCountry, setSelectedCountry, countryOptions, currencyCode } = useLocationCurrency();
+
+  const loginAsGuest = async () => {
+    setError("");
+    setIsGuestLoading(true);
+
+    try {
+      const response = await authApi.guestLogin();
+      localStorage.setItem("authToken", response.data.accessToken || response.data.token);
+      localStorage.setItem("authUser", JSON.stringify(response.data.user));
+      localStorage.setItem("isGuest", "true");
+      navigate("/dashboard");
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Unable to start guest preview");
+    } finally {
+      setIsGuestLoading(false);
+    }
+  };
 
   const onSubmit = async (event) => {
     event.preventDefault();
@@ -51,6 +72,14 @@ function LoginPage() {
         <h1>Welcome Back</h1>
         <p className="subtext">Log in to track performance and charity impact.</p>
 
+        <LocationCurrencyPicker
+          compact
+          selectedCountry={selectedCountry}
+          setSelectedCountry={setSelectedCountry}
+          countryOptions={countryOptions}
+          currencyCode={currencyCode}
+        />
+
         <label>
           Email
           <input
@@ -78,6 +107,18 @@ function LoginPage() {
 
         <button type="submit" className="cta-btn" disabled={isSubmitting}>
           {isSubmitting ? "Signing in..." : "Log in"}
+        </button>
+
+        <p className="switch-text" style={{ marginTop: "6px", textAlign: "center" }}>
+          Forgot password? <Link to="/forgot-password">Reset by email</Link>
+        </p>
+
+        <p className="switch-text" style={{ marginTop: "4px", textAlign: "center" }}>
+          Admin? <Link to="/admin">Go to Admin Panel</Link> or <Link to="/admin-signup">Register as Admin</Link>
+        </p>
+
+        <button type="button" className="secondary-btn guest-preview-btn" onClick={loginAsGuest} disabled={isGuestLoading}>
+          {isGuestLoading ? "Opening preview..." : "Continue as Guest Preview"}
         </button>
 
         <p className="switch-text">

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
+import LocationCurrencyPicker from "../components/LocationCurrencyPicker";
+import { useLocationCurrency } from "../hooks/useLocationCurrency";
 import { authApi, drawsApi } from "../services/api";
 
 const formatDateTime = (value) => {
@@ -15,7 +17,7 @@ const formatDateTime = (value) => {
   return date.toLocaleString();
 };
 
-const WinnerGroup = ({ title, winners }) => {
+const WinnerGroup = ({ title, winners, formatMoney }) => {
   return (
     <section className="status-panel">
       <p>
@@ -27,7 +29,7 @@ const WinnerGroup = ({ title, winners }) => {
             <article key={`${winner.userId}-${index}`} className="score-row">
               <span>{winner.name || winner.email || winner.userId}</span>
               <span>
-                {winner.matchedNumbers.length} matches | GBP {winner.winnings}
+                {winner.matchedNumbers.length} matches | {formatMoney(winner.winnings || 0)}
               </span>
             </article>
           ))}
@@ -53,6 +55,7 @@ function DrawResultsPage() {
   const [runningDraw, setRunningDraw] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const { selectedCountry, setSelectedCountry, countryOptions, currencyCode, formatMoney } = useLocationCurrency();
 
   const loadDraw = async () => {
     const response = await drawsApi.getLatest();
@@ -137,6 +140,14 @@ function DrawResultsPage() {
         {error ? <p className="error-text">{error}</p> : null}
         {message ? <p className="success-text">{message}</p> : null}
 
+        <LocationCurrencyPicker
+          compact
+          selectedCountry={selectedCountry}
+          setSelectedCountry={setSelectedCountry}
+          countryOptions={countryOptions}
+          currencyCode={currencyCode}
+        />
+
         {user?.role === "admin" ? (
           <button type="button" onClick={runDraw} disabled={runningDraw}>
             {runningDraw ? "Running draw..." : "Run Monthly Draw"}
@@ -162,22 +173,22 @@ function DrawResultsPage() {
 
             <div className="status-panel">
               <p>
-                <strong>Total Subscription Pool:</strong> GBP {draw.prizePool?.totalSubscriptions ?? 0}
+                <strong>Total Subscription Pool:</strong> {formatMoney(draw.prizePool?.totalSubscriptions ?? 0)}
               </p>
               <p>
-                <strong>3-Match Pool (25%):</strong> GBP {draw.prizePool?.pools?.match3 ?? 0}
+                <strong>3-Match Pool (25%):</strong> {formatMoney(draw.prizePool?.pools?.match3 ?? 0)}
               </p>
               <p>
-                <strong>4-Match Pool (35%):</strong> GBP {draw.prizePool?.pools?.match4 ?? 0}
+                <strong>4-Match Pool (35%):</strong> {formatMoney(draw.prizePool?.pools?.match4 ?? 0)}
               </p>
               <p>
-                <strong>5-Match Pool (40% + rollover):</strong> GBP {draw.prizePool?.pools?.match5 ?? 0}
+                <strong>5-Match Pool (40% + rollover):</strong> {formatMoney(draw.prizePool?.pools?.match5 ?? 0)}
               </p>
               <p>
-                <strong>Rollover In:</strong> GBP {draw.prizePool?.rolloverIn ?? 0}
+                <strong>Rollover In:</strong> {formatMoney(draw.prizePool?.rolloverIn ?? 0)}
               </p>
               <p>
-                <strong>Rollover Out:</strong> GBP {draw.prizePool?.rolloverOut ?? 0}
+                <strong>Rollover Out:</strong> {formatMoney(draw.prizePool?.rolloverOut ?? 0)}
               </p>
             </div>
 
@@ -193,13 +204,13 @@ function DrawResultsPage() {
                   : "none"}
               </p>
               <p>
-                <strong>Your Winnings:</strong> GBP {draw.currentUser?.winnings || 0}
+                <strong>Your Winnings:</strong> {formatMoney(draw.currentUser?.winnings || 0)}
               </p>
             </div>
 
-            <WinnerGroup title="3-Match Winners" winners={draw.winners?.match3 || []} />
-            <WinnerGroup title="4-Match Winners" winners={draw.winners?.match4 || []} />
-            <WinnerGroup title="5-Match Winners" winners={draw.winners?.match5 || []} />
+            <WinnerGroup title="3-Match Winners" winners={draw.winners?.match3 || []} formatMoney={formatMoney} />
+            <WinnerGroup title="4-Match Winners" winners={draw.winners?.match4 || []} formatMoney={formatMoney} />
+            <WinnerGroup title="5-Match Winners" winners={draw.winners?.match5 || []} formatMoney={formatMoney} />
           </>
         ) : (
           <p className="subtext">No monthly draw has been run yet.</p>

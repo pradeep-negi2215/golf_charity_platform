@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
+import LocationCurrencyPicker from "../components/LocationCurrencyPicker";
+import { useLocationCurrency } from "../hooks/useLocationCurrency";
 import { subscriptionApi } from "../services/api";
 
 const PLAN_OPTIONS = [
@@ -59,6 +61,7 @@ function SubscriptionPage() {
   const confirmBtnRef = useRef(null);
   const previousFocusRef = useRef(null);
   const navigate = useNavigate();
+  const { selectedCountry, setSelectedCountry, countryOptions, currencyCode, formatMoney } = useLocationCurrency();
 
   const showToast = (type, text) => {
     setToast({ type, text });
@@ -324,6 +327,14 @@ function SubscriptionPage() {
         <h1>Subscription</h1>
         <p className="subtext">Choose a monthly or yearly plan to unlock member-only features.</p>
 
+        <LocationCurrencyPicker
+          compact
+          selectedCountry={selectedCountry}
+          setSelectedCountry={setSelectedCountry}
+          countryOptions={countryOptions}
+          currencyCode={currencyCode}
+        />
+
         <div className="status-pill-row">
           <span className={statusData?.isActive ? "status-pill active" : "status-pill inactive"}>
             {statusData?.isActive ? "Active" : "Inactive"}
@@ -355,7 +366,7 @@ function SubscriptionPage() {
                 onChange={(event) => setPlanType(event.target.value)}
               />
               <span className="plan-title">{option.label}</span>
-              <span className="plan-price">GBP {option.amount.toFixed(2)}</span>
+              <span className="plan-price">{formatMoney(option.amount)}</span>
               {hasActivePlan && currentPlanType === option.value ? (
                 <span className="plan-note">Current active plan</span>
               ) : null}

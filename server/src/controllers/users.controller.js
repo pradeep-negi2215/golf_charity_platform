@@ -4,6 +4,26 @@ const Charity = require("../models/charity.model");
 
 const listUsers = async (req, res) => {
   try {
+    if (global.DEMO_MODE) {
+      return res.status(200).json([
+        {
+          _id: "demo-user-001",
+          email: "demo@example.com",
+          firstName: "Demo",
+          lastName: "User",
+          role: "member",
+          selectedCharity: {
+            _id: "demo-charity-001",
+            name: "Demo Charity",
+            category: "health",
+            country: "UK",
+            status: "active"
+          },
+          createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+        }
+      ]);
+    }
+
     const users = await User.find()
       .select("-password")
       .populate("selectedCharity", "name category country status")
@@ -16,6 +36,30 @@ const listUsers = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
+    if (global.DEMO_MODE) {
+      const { password, role } = req.body;
+
+      if (!password || password.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+
+      const normalizedRole = role || "member";
+      if (!["member", "admin"].includes(normalizedRole)) {
+        return res.status(400).json({ message: "Role must be either member or admin" });
+      }
+
+      return res.status(201).json({
+        _id: "demo-user-" + Date.now(),
+        email: req.body.email || "demo.user@example.com",
+        firstName: req.body.firstName || "Demo",
+        lastName: req.body.lastName || "User",
+        role: normalizedRole,
+        donationPercentage: 10,
+        createdAt: new Date().toISOString(),
+        message: "Demo mode user created"
+      });
+    }
+
     const { password, role } = req.body;
 
     if (!password || password.length < 8) {

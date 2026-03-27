@@ -9,11 +9,36 @@ const port = process.env.PORT || 5000;
 const startServer = async () => {
   try {
     validateEnvironment();
-    await connectMongoDB();
-    await initMySQLPool();
+    global.DEMO_MODE = false;
+    global.MYSQL_UNAVAILABLE = false;
+
+    console.log("Attempting to connect to MongoDB...");
+    try {
+      await connectMongoDB();
+    } catch (mongoError) {
+      console.warn("⚠️  MongoDB connection failed:", mongoError.message);
+      console.warn("Running in DEMO mode - databases unavailable");
+      global.DEMO_MODE = true;
+    }
+
+    console.log("Attempting to connect to MySQL...");
+    try {
+      await initMySQLPool();
+    } catch (mysqlError) {
+      console.warn("⚠️  MySQL connection failed:", mysqlError.message);
+      global.MYSQL_UNAVAILABLE = true;
+    }
 
     app.listen(port, () => {
-      console.log(`Server running on port ${port}`);
+      let mode = "[PRODUCTION]";
+
+      if (global.DEMO_MODE) {
+        mode = "[DEMO MODE]";
+      } else if (global.MYSQL_UNAVAILABLE) {
+        mode = "[DEGRADED MODE - MySQL unavailable]";
+      }
+
+      console.log(`${mode} Server running on port ${port}`);
     });
   } catch (error) {
     console.error("Failed to start server:", error.message);

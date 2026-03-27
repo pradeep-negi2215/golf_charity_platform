@@ -55,6 +55,22 @@ const recordSubscriptionContribution = async (userId, amount, currency = "GBP", 
 
 const listSubscriptions = async (req, res) => {
   try {
+    if (global.DEMO_MODE) {
+      return res.status(200).json([
+        {
+          _id: "demo-sub-001",
+          userId: req.user?._id || "demo-guest-001",
+          planType: "monthly",
+          amount: 50,
+          currency: "GBP",
+          status: "active",
+          startedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+          renewalDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+          billingCycle: "monthly"
+        }
+      ]);
+    }
+
     const query = {};
     const isAdmin = req.user?.role === "admin";
 
@@ -76,6 +92,29 @@ const listSubscriptions = async (req, res) => {
 
 const createSubscription = async (req, res) => {
   try {
+    if (global.DEMO_MODE) {
+      const planType = req.body.planType || req.body.billingCycle || "monthly";
+      const amount = Number(
+        req.body.amount ?? (planType === "yearly" ? 199.99 : 19.99)
+      );
+      const now = new Date();
+      const endAt = buildPeriodEnd(planType, now);
+
+      return res.status(201).json({
+        _id: "demo-sub-" + Date.now(),
+        userId: req.user?._id || "demo-guest-001",
+        planType,
+        amount,
+        currency: req.body.currency || "GBP",
+        status: "active",
+        startedAt: now.toISOString(),
+        renewalDate: endAt.toISOString(),
+        billingCycle: planType,
+        plan: planType,
+        message: "Demo mode subscription created"
+      });
+    }
+
     const isAdmin = req.user?.role === "admin";
     const userId = isAdmin ? req.body.userId || req.user._id : req.user._id;
     const planType = req.body.planType || req.body.billingCycle || "monthly";
@@ -152,6 +191,25 @@ const createSubscription = async (req, res) => {
 
 const updateSubscriptionStatus = async (req, res) => {
   try {
+    if (global.DEMO_MODE) {
+      const planType = req.body.planType || "monthly";
+      const now = new Date();
+      const endAt = req.body.status === "active" ? buildPeriodEnd(planType, now) : now;
+
+      return res.status(200).json({
+        subscription: {
+          user_id: req.user?._id || "demo-guest-001",
+          plan_type: planType,
+          amount: req.body.amount || 50,
+          currency: req.body.currency || "GBP",
+          status: req.body.status || "active",
+          started_at: now.toISOString(),
+          end_at: endAt.toISOString(),
+          message: "Demo mode subscription updated"
+        }
+      });
+    }
+
     const mysqlPool = getMySQLPool();
     const userId = resolveTargetUserId(req);
     const status = req.body.status;
@@ -216,6 +274,19 @@ const updateSubscriptionStatus = async (req, res) => {
 
 const getSubscriptionStatus = async (req, res) => {
   try {
+    if (global.DEMO_MODE) {
+      return res.status(200).json({
+        userId: req.user?._id || "demo-guest-001",
+        status: "active",
+        isActive: true,
+        planType: "monthly",
+        amount: 50,
+        currency: "GBP",
+        startedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+        endAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      });
+    }
+
     const mysqlPool = getMySQLPool();
     const userId = resolveTargetUserId(req);
 

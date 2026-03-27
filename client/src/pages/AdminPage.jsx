@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
+import LocationCurrencyPicker from "../components/LocationCurrencyPicker";
+import { useLocationCurrency } from "../hooks/useLocationCurrency";
 import { adminApi, authApi, charityApi, drawsApi } from "../services/api";
 
 const SECTIONS = [
@@ -33,6 +35,7 @@ function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const { selectedCountry, setSelectedCountry, countryOptions, currencyCode, formatMoney } = useLocationCurrency();
 
   const token = localStorage.getItem("authToken");
 
@@ -458,6 +461,13 @@ function AdminPage() {
         {activeSection === "draw" ? (
           <section className="admin-card">
             <h2>Create & Run Draw / Verify Payouts</h2>
+            <LocationCurrencyPicker
+              compact
+              selectedCountry={selectedCountry}
+              setSelectedCountry={setSelectedCountry}
+              countryOptions={countryOptions}
+              currencyCode={currencyCode}
+            />
             <div className="grid-two">
               <label>
                 Run Draw Month Key (optional, YYYY-MM)
@@ -504,7 +514,7 @@ function AdminPage() {
                       (drawWinners.winners[tier] || []).map((winner) => (
                         <div key={`${tier}-${winner.userId?._id || winner.userId}`} className="admin-inline-row">
                           <span>{winner.userId?.email || winner.userId?.firstName || "winner"}</span>
-                          <span>GBP {winner.winnings}</span>
+                          <span>{formatMoney(winner.winnings || 0)}</span>
                           <span>{winner.paidOut ? "Paid" : "Pending"}</span>
                           <button
                             type="button"

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import LocationCurrencyPicker from "../components/LocationCurrencyPicker";
+import { useLocationCurrency } from "../hooks/useLocationCurrency";
 import { authApi, drawsApi, scoresApi, subscriptionApi } from "../services/api";
 
 const daysLeft = (endAt) => {
@@ -24,6 +26,7 @@ function DashboardPage() {
       return null;
     }
   });
+  const [isGuest, setIsGuest] = useState(false);
   const [loading, setLoading] = useState(true);
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const [scores, setScores] = useState([]);
@@ -39,13 +42,57 @@ function DashboardPage() {
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
   const [savingScore, setSavingScore] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const navigate = useNavigate();
+  const { selectedCountry, setSelectedCountry, countryOptions, currencyCode, formatMoney } = useLocationCurrency();
 
   useEffect(() => {
     let isMounted = true;
 
     const loadDashboard = async () => {
       try {
+        const authToken = localStorage.getItem("authToken");
+        
+        if (!authToken) {
+          // Guest mode: show demo data
+          if (isMounted) {
+            setIsGuest(true);
+            setUser({ firstName: "Guest" });
+            setSubscriptionStatus({
+              isActive: false,
+              planType: "Not subscribed",
+              endAt: null
+            });
+            setScores([
+              { _id: "demo-1", value: 38, date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() },
+              { _id: "demo-2", value: 40, date: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString() },
+              { _id: "demo-3", value: 36, date: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString() }
+            ]);
+            setDrawHistory([
+              {
+                _id: "demo-draw-001",
+                monthKey: "March 2026",
+                month: "March 2026",
+                drawNumbers: [7, 14, 21, 28, 35],
+                participated: true,
+                matchCount: 4,
+                winnings: 125.50
+              },
+              {
+                _id: "demo-draw-002",
+                monthKey: "February 2026",
+                month: "February 2026",
+                drawNumbers: [2, 15, 23, 31, 42],
+                participated: true,
+                matchCount: 2,
+                winnings: 45.00
+              }
+            ]);
+            setLoading(false);
+          }
+          return;
+        }
+
         const [meResponse, subscriptionResponse, scoresResponse, historyResponse] = await Promise.all([
           authApi.me(),
           subscriptionApi.getStatus(),
@@ -54,6 +101,7 @@ function DashboardPage() {
         ]);
 
         if (isMounted) {
+          setIsGuest(false);
           setUser(meResponse.data.user);
           setSubscriptionStatus(subscriptionResponse.data);
           setScores(scoresResponse.data.scores || []);
@@ -61,10 +109,16 @@ function DashboardPage() {
           localStorage.setItem("authUser", JSON.stringify(meResponse.data.user));
         }
       } catch (error) {
-        localStorage.removeItem("authToken");
-        localStorage.removeItem("authUser");
-        if (isMounted) {
-          navigate("/login", { replace: true });
+        const authToken = localStorage.getItem("authToken");
+        
+        if (authToken) {
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("authUser");
+          if (isMounted) {
+            navigate("/dashboard", { replace: true });
+          }
+        } else if (isMounted) {
+          setLoading(false);
         }
       } finally {
         if (isMounted) {
@@ -79,20 +133,6 @@ function DashboardPage() {
       isMounted = false;
     };
   }, [navigate]);
-
-  if (!localStorage.getItem("authToken")) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (loading) {
-    return (
-      <div className="auth-layout">
-        <section className="auth-card">
-          <p>Loading your account...</p>
-        </section>
-      </div>
-    );
-  }
 
   const remainingDays = daysLeft(subscriptionStatus?.endAt);
 
@@ -112,6 +152,30 @@ function DashboardPage() {
 
   const latestScore = scores[0] || null;
 
+  const scoreOverview = useMemo(() => {
+    const values = scores
+      .map((item) => Number(item.value))
+      .filter((value) => Number.isFinite(value));
+
+    if (!values.length) {
+      return {
+        total: 0,
+        average: 0,
+        best: 0
+      };
+    }
+
+    const total = values.length;
+    const average = values.reduce((sum, value) => sum + value, 0) / total;
+    const best = Math.min(...values);
+
+    return {
+      total,
+      average,
+      best
+    };
+  }, [scores]);
+
   const formatDate = (value) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
@@ -125,8 +189,21 @@ function DashboardPage() {
     });
   };
 
+  const handleAction = (actionName) => {
+    if (isGuest) {
+      setShowLoginModal(true);
+      return false;
+    }
+    return true;
+  };
+
   const addScore = async (event) => {
     event.preventDefault();
+    
+    if (!handleAction("add score")) {
+      return;
+    }
+
     setActionError("");
     setActionSuccess("");
 
@@ -159,28 +236,97 @@ function DashboardPage() {
   };
 
   const logout = () => {
+    if (isGuest) {
+      navigate("/", { replace: true });
+      return;
+    }
+
     authApi
       .logout()
       .catch(() => null)
       .finally(() => {
         localStorage.removeItem("authToken");
         localStorage.removeItem("authUser");
-        navigate("/login", { replace: true });
+        navigate("/", { replace: true });
       });
   };
+
+  if (loading) {
+    return (
+      <div className="auth-layout">
+        <section className="auth-card">
+          <p>Loading your account...</p>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-layout">
       <section className="dashboard-shell">
+        {isGuest && (
+          <div className="notice-text" style={{ marginBottom: "16px", backgroundColor: "#fffdf0", borderColor: "#d4af37" }}>
+            ℹ️ You are viewing as a guest with sample data. Sign up or log in to save your actual scores, manage subscriptions, and participate in draws. Actions require login.
+          </div>
+        )}
         <header className="dashboard-hero">
           <div>
             <h1>Member Dashboard</h1>
-            <p className="subtext">Welcome back, {user?.firstName}. Here is your full subscription, score, and draw view.</p>
+            <p className="subtext">Welcome{isGuest ? "" : " back"}, {user?.firstName}. {isGuest ? "Here is a preview of your dashboard." : "Here is your full subscription, score, and draw view."}</p>
           </div>
-          <button type="button" onClick={logout} className="secondary-btn">
-            Log out
-          </button>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            {!isGuest ? (
+              <button
+                type="button"
+                onClick={() => navigate("/settings")}
+                className="secondary-btn"
+                style={{ fontSize: "14px", padding: "10px 16px" }}
+              >
+                Settings
+              </button>
+            ) : null}
+            {user?.role === "admin" && !isGuest ? (
+              <button type="button" onClick={() => navigate("/admin")} className="cta-btn"
+                      style={{ fontSize: "14px", padding: "10px 16px" }}>
+                ⚙️ Admin Panel
+              </button>
+            ) : null}
+            <button type="button" onClick={logout} className="secondary-btn">
+              {isGuest ? "Go Back" : "Log out"}
+            </button>
+          </div>
         </header>
+
+        <LocationCurrencyPicker
+          compact
+          selectedCountry={selectedCountry}
+          setSelectedCountry={setSelectedCountry}
+          countryOptions={countryOptions}
+          currencyCode={currencyCode}
+        />
+
+        <section className="dashboard-top-metrics" aria-label="Performance summary">
+          <article className="metric-tile">
+            <p className="metric-label">Subscription</p>
+            <p className="metric-value">{subscriptionStatus?.isActive ? "Active" : "Inactive"}</p>
+            <p className="metric-sub">{subscriptionStatus?.planType || "No plan selected"}</p>
+          </article>
+          <article className="metric-tile">
+            <p className="metric-label">Average Score</p>
+            <p className="metric-value">{scoreOverview.average ? scoreOverview.average.toFixed(1) : "-"}</p>
+            <p className="metric-sub">Across {scoreOverview.total} recent rounds</p>
+          </article>
+          <article className="metric-tile">
+            <p className="metric-label">Best Score</p>
+            <p className="metric-value">{scoreOverview.best || "-"}</p>
+            <p className="metric-sub">Lower is better</p>
+          </article>
+          <article className="metric-tile">
+            <p className="metric-label">Total Winnings</p>
+            <p className="metric-value">{formatMoney(winningsOverview.totalWinnings)}</p>
+            <p className="metric-sub">{winningsOverview.winningMonths} winning months</p>
+          </article>
+        </section>
 
         <div className="dashboard-grid">
           <section className="dashboard-card">
@@ -197,9 +343,17 @@ function DashboardPage() {
             <p>
               <strong>Days Left:</strong> {remainingDays}
             </p>
-            <Link to="/subscription" className="inline-link-btn">
+            <button
+              type="button"
+              onClick={() => {
+                if (!handleAction("manage subscription")) return;
+                navigate("/subscription");
+              }}
+              className="inline-link-btn"
+              style={{ cursor: "pointer" }}
+            >
               Manage Subscription
-            </Link>
+            </button>
           </section>
 
           <section className="dashboard-card">
@@ -213,13 +367,26 @@ function DashboardPage() {
             <p>
               <strong>Contribution Percentage:</strong> {Number(user?.donationPercentage || 10)}%
             </p>
-            <Link to="/charities" className="inline-link-btn">
+            <button
+              type="button"
+              onClick={() => {
+                if (!handleAction("update charity")) return;
+                navigate("/charities");
+              }}
+              className="inline-link-btn"
+              style={{ cursor: "pointer" }}
+            >
               Update Charity Selection
-            </Link>
-            {user?.role === "admin" ? (
-              <Link to="/admin" className="inline-link-btn">
+            </button>
+            {user?.role === "admin" && !isGuest ? (
+              <button
+                type="button"
+                onClick={() => navigate("/admin")}
+                className="inline-link-btn"
+                style={{ cursor: "pointer" }}
+              >
                 Open Admin Panel
-              </Link>
+              </button>
             ) : null}
           </section>
 
@@ -235,6 +402,7 @@ function DashboardPage() {
                     max="45"
                     value={scoreValue}
                     onChange={(event) => setScoreValue(event.target.value)}
+                    disabled={isGuest}
                     required
                   />
                 </label>
@@ -244,12 +412,13 @@ function DashboardPage() {
                     type="date"
                     value={scoreDate}
                     onChange={(event) => setScoreDate(event.target.value)}
+                    disabled={isGuest}
                     required
                   />
                 </label>
               </div>
-              <button type="submit" disabled={savingScore}>
-                {savingScore ? "Saving..." : "Add Score"}
+              <button type="submit" disabled={savingScore || isGuest}>
+                {savingScore ? "Saving..." : isGuest ? "Sign In to Add Score" : "Add Score"}
               </button>
             </form>
             {actionError ? <p className="error-text">{actionError}</p> : null}
@@ -274,7 +443,7 @@ function DashboardPage() {
           <section className="dashboard-card">
             <h2>Winnings Overview</h2>
             <p>
-              <strong>Total Winnings:</strong> GBP {winningsOverview.totalWinnings.toFixed(2)}
+              <strong>Total Winnings:</strong> {formatMoney(winningsOverview.totalWinnings)}
             </p>
             <p>
               <strong>Winning Months:</strong> {winningsOverview.winningMonths}
@@ -285,9 +454,17 @@ function DashboardPage() {
             <p>
               <strong>Best Match:</strong> {winningsOverview.bestMatch}
             </p>
-            <Link to="/draw-results" className="inline-link-btn">
+            <button
+              type="button"
+              onClick={() => {
+                if (!handleAction("view draw details")) return;
+                navigate("/draw-results");
+              }}
+              className="inline-link-btn"
+              style={{ cursor: "pointer" }}
+            >
               View Latest Draw Details
-            </Link>
+            </button>
           </section>
 
           <section className="dashboard-card dashboard-card-wide">
@@ -295,9 +472,9 @@ function DashboardPage() {
             <div className="draw-history-list">
               {drawHistory.length ? (
                 drawHistory.map((entry) => (
-                  <article key={entry.monthKey} className="draw-history-row">
+                  <article key={entry.monthKey || entry._id || `${entry.month || "unknown"}-${entry.createdAt || "entry"}`} className="draw-history-row">
                     <div>
-                      <p className="draw-history-title">{entry.monthKey}</p>
+                      <p className="draw-history-title">{entry.monthKey || entry.month || "Draw result"}</p>
                       <p className="switch-text">Draw numbers: {(entry.drawNumbers || []).join(", ") || "-"}</p>
                     </div>
                     <div className="draw-history-stats">
@@ -305,7 +482,7 @@ function DashboardPage() {
                         {entry.participated ? "Participated" : "No Entry"}
                       </span>
                       <span>Matches: {entry.matchCount || 0}</span>
-                      <span>Winnings: GBP {Number(entry.winnings || 0).toFixed(2)}</span>
+                      <span>Winnings: {formatMoney(Number(entry.winnings || 0))}</span>
                     </div>
                   </article>
                 ))
@@ -315,6 +492,39 @@ function DashboardPage() {
             </div>
           </section>
         </div>
+
+        {showLoginModal && (
+          <div className="modal-overlay" onClick={() => setShowLoginModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <h2>Sign In Required</h2>
+              <p>To perform this action, please sign in to your account.</p>
+              <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
+                <button
+                  type="button"
+                  onClick={() => navigate("/login")}
+                  className="primary-btn"
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/signup")}
+                  className="secondary-btn"
+                >
+                  Create Account
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowLoginModal(false)}
+                  className="secondary-btn"
+                  style={{ marginLeft: "auto" }}
+                >
+                  Back
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );

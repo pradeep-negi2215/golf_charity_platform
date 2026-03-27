@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import LocationCurrencyPicker from "../components/LocationCurrencyPicker";
+import { useLocationCurrency } from "../hooks/useLocationCurrency";
 import { authApi, charityApi } from "../services/api";
 
 const initialForm = {
@@ -50,6 +52,7 @@ function SignupPage() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { selectedCountry, setSelectedCountry, countryOptions, currencyCode } = useLocationCurrency();
 
   useEffect(() => {
     let isMounted = true;
@@ -100,6 +103,14 @@ function SignupPage() {
     });
   }, [charities, charityCategory, charitySearch]);
 
+  const hasCharities = charities.length > 0;
+  const hasFilteredCharities = filteredCharities.length > 0;
+
+  const clearCharityFilters = () => {
+    setCharitySearch("");
+    setCharityCategory("all");
+  };
+
   const onChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -112,6 +123,11 @@ function SignupPage() {
     const validationError = validateForm(form);
     if (validationError) {
       setError(validationError);
+      return;
+    }
+
+    if (!hasCharities) {
+      setError("No active charities are available right now. Please try again later.");
       return;
     }
 
@@ -139,6 +155,14 @@ function SignupPage() {
       <form className="auth-card" onSubmit={onSubmit}>
         <h1>Create Account</h1>
         <p className="subtext">Join the golf charity subscription platform.</p>
+
+        <LocationCurrencyPicker
+          compact
+          selectedCountry={selectedCountry}
+          setSelectedCountry={setSelectedCountry}
+          countryOptions={countryOptions}
+          currencyCode={currencyCode}
+        />
 
         <div className="grid-two">
           <label>
@@ -211,8 +235,25 @@ function SignupPage() {
 
         <label>
           Select Charity
-          <select name="charityId" value={form.charityId} onChange={onChange} required>
-            <option value="">Select an active charity</option>
+          <select
+            name="charityId"
+            value={form.charityId}
+            onChange={onChange}
+            required
+            disabled={charityLoading || !hasCharities}
+          >
+            <option value="">
+              {charityLoading
+                ? "Loading charities..."
+                : !hasCharities
+                  ? "No active charities available"
+                  : "Select an active charity"}
+            </option>
+            {!charityLoading && hasCharities && !hasFilteredCharities ? (
+              <option value="" disabled>
+                No charities match your current filters
+              </option>
+            ) : null}
             {filteredCharities.map((charity) => (
               <option key={charity._id} value={charity._id}>
                 {charity.name} ({charity.category || "general"} - {charity.country || "UK"})
@@ -220,6 +261,21 @@ function SignupPage() {
             ))}
           </select>
         </label>
+
+        {!charityLoading && hasCharities && !hasFilteredCharities ? (
+          <p className="switch-text">
+            No charities found for this search/category. {" "}
+            <button type="button" className="charity-reset-btn" onClick={clearCharityFilters}>
+              Reset filters
+            </button>
+          </p>
+        ) : null}
+
+        {!charityLoading && !hasCharities ? (
+          <p className="notice-text">
+            No active charities are currently configured. Please contact an admin or try again later.
+          </p>
+        ) : null}
 
         <label>
           Donation Percentage (%)

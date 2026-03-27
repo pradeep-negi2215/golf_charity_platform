@@ -19,7 +19,9 @@ const validateEnvironment = () => {
 
   assertRequired("JWT_SECRET");
   assertRequired("JWT_REFRESH_SECRET");
-  assertRequired("MONGODB_URI");
+  if (!process.env.MONGODB_URI && !process.env.MONGO_URI) {
+    throw new Error("Missing required environment variable: MONGODB_URI (or MONGO_URI)");
+  }
 
   if (nodeEnv === "production") {
     const cookieSecure = `${process.env.COOKIE_SECURE || "false"}`.toLowerCase() === "true";

@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+  baseURL: import.meta.env.VITE_API_URL || "/api",
   withCredentials: true
 });
 
@@ -17,7 +17,12 @@ api.interceptors.request.use((config) => {
 
 export const authApi = {
   register: (payload) => api.post("/auth/register", payload),
+  registerAdmin: (payload) => api.post("/auth/register-admin", payload),
   login: (payload) => api.post("/auth/login", payload),
+  forgotPassword: (payload) => api.post("/auth/forgot-password", payload),
+  resetPassword: (payload) => api.post("/auth/reset-password", payload),
+  changePassword: (payload) => api.post("/auth/change-password", payload),
+  guestLogin: () => api.post("/auth/guest-login"),
   refresh: () => api.post("/auth/refresh"),
   logout: () => api.post("/auth/logout"),
   me: () => api.get("/auth/me")
@@ -89,6 +94,8 @@ api.interceptors.response.use(
       !originalRequest._retry &&
       !url.includes("/auth/refresh") &&
       !url.includes("/auth/login") &&
+      !url.includes("/auth/forgot-password") &&
+      !url.includes("/auth/reset-password") &&
       !url.includes("/auth/register")
     ) {
       try {

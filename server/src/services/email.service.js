@@ -104,9 +104,24 @@ const sendWinnerEmail = async ({ email, firstName, monthKey, tier, winnings }) =
   return sendEmail({ to: email, subject, text, html });
 };
 
+const sendPasswordResetEmail = async ({ email, firstName, resetUrl }) => {
+  const displayName = firstName || "Golfer";
+  const subject = "Reset your Golf Charity account password";
+  const text = `Hi ${displayName},\n\nWe received a request to reset your password.\nUse this link to reset it: ${resetUrl}\n\nIf you did not request a reset, you can ignore this message. The link will expire in 1 hour.`;
+  const html = `
+    <p>Hi ${displayName},</p>
+    <p>We received a request to reset your password.</p>
+    <p><a href="${resetUrl}">Reset your password</a></p>
+    <p>If you did not request a reset, you can ignore this message. The link will expire in 1 hour.</p>
+  `;
+
+  return sendEmail({ to: email, subject, text, html });
+};
+
 module.exports = {
   sendEmail,
   sendSignupEmail,
   sendDrawResultEmail,
-  sendWinnerEmail
+  sendWinnerEmail,
+  sendPasswordResetEmail
 };

@@ -5,7 +5,9 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/user.model");
 const RefreshToken = require("../models/refresh-token.model");
 const Charity = require("../models/charity.model");
-const { sendSignupEmail } = require("../services/email.service");
+const { sendSignupEmail, sendPasswordResetEmail } = require("../services/email.service");
+
+const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 
 const getJwtSecret = () => {
   if (!process.env.JWT_SECRET) {
@@ -110,6 +112,10 @@ const validateEmail = (email) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 };
 
+const getClientBaseUrl = () => {
+  return process.env.CLIENT_APP_URL || process.env.FRONTEND_URL || "http://localhost:5173";
+};
+
 const register = async (req, res) => {
   try {
     const { firstName, lastName, email, password, handicap, homeClub, charityId } = req.body;
@@ -170,6 +176,54 @@ const register = async (req, res) => {
   }
 };
 
+const registerAdmin = async (req, res) => {
+  try {
+    const { firstName, lastName, email, password, handicap, homeClub } = req.body;
+
+    if (!firstName || !lastName || !email || !password) {
+      return res.status(400).json({ message: "firstName, lastName, email, and password are required" });
+    }
+
+    if (!validateEmail(email)) {
+      return res.status(400).json({ message: "Invalid email format" });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters" });
+    }
+
+    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existingUser) {
+      return res.status(409).json({ message: "User already exists with this email" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const adminUser = await User.create({
+      firstName,
+      lastName,
+      email,
+      password: hashedPassword,
+      role: "admin",
+      handicap: handicap || 28,
+      homeClub: homeClub || ""
+    });
+
+    const refreshToken = issueRefreshToken(adminUser);
+    await persistRefreshToken(adminUser, refreshToken, req);
+    setRefreshCookie(res, refreshToken);
+
+    sendSignupEmail({
+      email: adminUser.email,
+      firstName: adminUser.firstName
+    }).catch(() => null);
+
+    return res.status(201).json(buildAuthResponse(adminUser));
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -193,6 +247,91 @@ const login = async (req, res) => {
     setRefreshCookie(res, refreshToken);
 
     return res.status(200).json(buildAuthResponse(user));
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const forgotPassword = async (req, res) => {
+  try {
+    const email = `${req.body.email || ""}`.toLowerCase().trim();
+
+    const genericMessage = "If that account exists, a password reset link has been sent to the email address.";
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(200).json({ message: genericMessage });
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    user.passwordResetTokenHash = tokenHash(rawToken);
+    user.passwordResetExpiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_TTL_MS);
+    await user.save();
+
+    const resetUrl = `${getClientBaseUrl()}/reset-password?token=${encodeURIComponent(rawToken)}`;
+
+    await sendPasswordResetEmail({
+      email: user.email,
+      firstName: user.firstName,
+      resetUrl
+    }).catch(() => null);
+
+    return res.status(200).json({ message: genericMessage });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    const user = await User.findOne({
+      passwordResetTokenHash: tokenHash(token),
+      passwordResetExpiresAt: { $gt: new Date() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Reset token is invalid or has expired" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.passwordResetTokenHash = null;
+    user.passwordResetExpiresAt = null;
+    await user.save();
+
+    await RefreshToken.updateMany({ userId: user._id, revokedAt: null }, { revokedAt: new Date() });
+    clearRefreshCookie(res);
+
+    return res.status(200).json({ message: "Password has been reset successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const passwordMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!passwordMatch) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.passwordResetTokenHash = null;
+    user.passwordResetExpiresAt = null;
+    await user.save();
+
+    await RefreshToken.updateMany({ userId: user._id, revokedAt: null }, { revokedAt: new Date() });
+    clearRefreshCookie(res);
+
+    return res.status(200).json({ message: "Password updated successfully. Please log in again." });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -259,11 +398,87 @@ const logout = async (req, res) => {
 };
 
 const me = async (req, res) => {
+  if (global.DEMO_MODE) {
+    // In demo mode, return the user from auth (who sent the token)
+    const user = {
+      _id: req.user?._id || "demo-guest-001",
+      firstName: "Guest",
+      lastName: "User",
+      email: "guest@demo.golf-charity.local",
+      role: "member",
+      selectedCharity: {
+        _id: "demo-charity-001",
+        name: "Demo Charity Foundation",
+        category: "Health",
+        country: "USA",
+        status: "active"
+      }
+    };
+    return res.status(200).json({ user });
+  }
+
   const user = await User.findById(req.user._id)
     .select("-password")
     .populate("selectedCharity", "name category country status");
 
   return res.status(200).json({ user });
+};
+
+const guestLogin = async (req, res) => {
+  try {
+    // Always work, even in demo mode
+    if (global.DEMO_MODE) {
+      const demoUser = {
+        _id: "demo-guest-" + Date.now(),
+        firstName: "Guest",
+        lastName: "User",
+        email: "guest@demo.golf-charity.local",
+        role: "member",
+        handicap: 15,
+        homeClub: "Demo Club",
+        selectedCharity: {
+          _id: "demo-charity-001",
+          name: "Demo Charity Foundation",
+          category: "Health",
+          country: "USA",
+          status: "active"
+        },
+        donationPercentage: 10
+      };
+
+      const demoRefreshToken = "demo-refresh-token-" + Date.now();
+      setRefreshCookie(res, demoRefreshToken);
+
+      return res.status(200).json(buildAuthResponse(demoUser));
+    }
+
+    let guestUser = await User.findOne({ email: "guest@demo.golf-charity.local", role: "member" });
+
+    if (!guestUser) {
+      const hashedPassword = await bcrypt.hash("Guest@Demo123!", 10);
+      const defaultCharity = await Charity.findOne({ status: "active" });
+
+      guestUser = await User.create({
+        firstName: "Guest",
+        lastName: "User",
+        email: "guest@demo.golf-charity.local",
+        password: hashedPassword,
+        role: "member",
+        handicap: 15,
+        homeClub: "Demo Club",
+        selectedCharity: defaultCharity?._id,
+        donationPercentage: 10
+      });
+    }
+
+    const refreshToken = issueRefreshToken(guestUser);
+    await persistRefreshToken(guestUser, refreshToken, req);
+    setRefreshCookie(res, refreshToken);
+
+    return res.status(200).json(buildAuthResponse(guestUser));
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
 };
 
 const bootstrapAdmin = async (req, res) => {
@@ -344,7 +559,12 @@ const bootstrapAdmin = async (req, res) => {
 
 module.exports = {
   register,
+  registerAdmin,
   login,
+  forgotPassword,
+  resetPassword,
+  changePassword,
+  guestLogin,
   refresh,
   logout,
   me,

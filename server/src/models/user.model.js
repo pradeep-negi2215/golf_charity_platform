@@ -48,6 +48,14 @@ const userSchema = new mongoose.Schema(
       min: 10,
       max: 100,
       default: 10
+    },
+    passwordResetTokenHash: {
+      type: String,
+      default: null
+    },
+    passwordResetExpiresAt: {
+      type: Date,
+      default: null
     }
   },
   {
