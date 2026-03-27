@@ -134,6 +134,12 @@ function DashboardPage() {
     };
   }, [navigate]);
 
+  useEffect(() => {
+    if (!loading && !isGuest && user?.role === "admin") {
+      navigate("/admin", { replace: true });
+    }
+  }, [loading, isGuest, user, navigate]);
+
   const remainingDays = daysLeft(subscriptionStatus?.endAt);
 
   const winningsOverview = useMemo(() => {
