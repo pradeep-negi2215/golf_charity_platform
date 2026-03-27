@@ -9,6 +9,12 @@ const Charity = require("../models/charity.model");
 const { sendSignupEmail, sendPasswordResetEmail } = require("../services/email.service");
 
 const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+const demoAdminEmails = new Set(
+  `${process.env.DEMO_ADMIN_EMAILS || ""}`
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+);
 
 const getJwtSecret = () => {
   if (!process.env.JWT_SECRET) {
@@ -240,10 +246,15 @@ const register = async (req, res) => {
 const registerAdmin = async (req, res) => {
   try {
     if (global.DEMO_MODE) {
+      const normalizedEmail = `${req.body.email || ""}`.toLowerCase().trim();
+      if (normalizedEmail) {
+        demoAdminEmails.add(normalizedEmail);
+      }
+
       const demoUser = buildDemoAuthUser({
         firstName: req.body.firstName,
         lastName: req.body.lastName,
-        email: req.body.email,
+        email: normalizedEmail || req.body.email,
         role: "admin",
         handicap: Number(req.body.handicap || 28),
         homeClub: req.body.homeClub || ""
@@ -306,15 +317,16 @@ const login = async (req, res) => {
   try {
     if (global.DEMO_MODE) {
       const { email, password } = req.body;
+      const normalizedEmail = `${email || ""}`.toLowerCase().trim();
 
       if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
       }
 
       const demoUser = buildDemoAuthUser({
-        email,
-        firstName: email.split("@")[0] || "Demo",
-        role: /admin/i.test(email) ? "admin" : "member"
+        email: normalizedEmail,
+        firstName: normalizedEmail.split("@")[0] || "Demo",
+        role: demoAdminEmails.has(normalizedEmail) || /admin/i.test(normalizedEmail) ? "admin" : "member"
       });
 
       return res.status(200).json(buildAuthResponse(demoUser));
