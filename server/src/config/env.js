@@ -10,7 +10,10 @@ const ensureRuntimeSecret = (key) => {
 };
 
 const getCorsOrigins = () => {
-  const raw = process.env.CLIENT_URL || process.env.FRONTEND_URL || "http://localhost:5173";
+  const raw =
+    process.env.CLIENT_URL ||
+    process.env.FRONTEND_URL ||
+    "http://localhost:5173,http://localhost:4173,https://*.vercel.app";
   const origins = raw
     .split(",")
     .map((item) => item.trim())

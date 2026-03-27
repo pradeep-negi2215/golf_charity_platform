@@ -33,6 +33,18 @@ const validateForm = (form) => {
   return "";
 };
 
+const getRequestErrorMessage = (requestError, fallback) => {
+  if (requestError.response?.data?.message) {
+    return requestError.response.data.message;
+  }
+
+  if (requestError.code === "ERR_NETWORK") {
+    return "Backend is unreachable or blocked by CORS. Please try again in a moment.";
+  }
+
+  return fallback;
+};
+
 function AdminSignupPage() {
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState("");
@@ -71,7 +83,7 @@ function AdminSignupPage() {
       localStorage.setItem("authUser", JSON.stringify(response.data.user));
       navigate("/dashboard");
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Admin signup failed");
+      setError(getRequestErrorMessage(requestError, "Admin signup failed"));
     } finally {
       setIsSubmitting(false);
     }

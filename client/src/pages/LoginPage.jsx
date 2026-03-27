@@ -16,6 +16,18 @@ const validateForm = (email, password) => {
   return "";
 };
 
+const getRequestErrorMessage = (requestError, fallback) => {
+  if (requestError.response?.data?.message) {
+    return requestError.response.data.message;
+  }
+
+  if (requestError.code === "ERR_NETWORK") {
+    return "Backend is unreachable or blocked by CORS. Please try again in a moment.";
+  }
+
+  return fallback;
+};
+
 function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,7 +48,7 @@ function LoginPage() {
       localStorage.setItem("isGuest", "true");
       navigate("/dashboard");
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Unable to start guest preview");
+      setError(getRequestErrorMessage(requestError, "Unable to start guest preview"));
     } finally {
       setIsGuestLoading(false);
     }
@@ -60,7 +72,7 @@ function LoginPage() {
       localStorage.setItem("authUser", JSON.stringify(response.data.user));
       navigate("/dashboard");
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Login failed");
+      setError(getRequestErrorMessage(requestError, "Login failed"));
     } finally {
       setIsSubmitting(false);
     }

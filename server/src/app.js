@@ -27,9 +27,42 @@ if (`${process.env.TRUST_PROXY || "false"}`.toLowerCase() === "true") {
 app.use(helmet());
 app.use(compression());
 
+const allowedOrigins = getCorsOrigins();
+
+const isOriginAllowed = (origin, allowed) => {
+  if (!origin) {
+    return true;
+  }
+
+  if (!Array.isArray(allowed) || !allowed.length) {
+    return true;
+  }
+
+  return allowed.some((item) => {
+    if (!item || item === "*") {
+      return true;
+    }
+
+    // Support wildcard patterns like https://*.vercel.app
+    if (item.includes("*")) {
+      const escaped = item.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+      const regex = new RegExp(`^${escaped}$`);
+      return regex.test(origin);
+    }
+
+    return origin === item;
+  });
+};
+
 app.use(
   cors({
-    origin: getCorsOrigins(),
+    origin: (origin, callback) => {
+      if (isOriginAllowed(origin, allowedOrigins)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`Origin not allowed by CORS: ${origin}`));
+    },
     credentials: true
   })
 );
